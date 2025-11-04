@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>นวลรัตน์เกมส์</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 10px; background: #f5f5f5; }
+h2 { text-align: center; }
+#totalScore { text-align:center; font-size:18px; margin-top:10px; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; font-size:16px; }
+th, td { padding: 8px; text-align: center; border: 1px solid #ccc; }
+th { background-color: #4CAF50; color: white; }
+input { width: 100px; text-align: center; font-size:16px; }
+button { padding: 5px 8px; margin: 2px; cursor: pointer; font-size:16px; }
+.add-player { margin-top: 10px; display: block; width: 100%; padding: 10px; background: #2196F3; color: white; border: none; font-size: 16px; cursor: pointer; }
+.reset { background:#FF9800; color:white; }
+#payments, #totals { margin-top:20px; background:#fff; padding:10px; border:1px solid #ccc; font-size:16px; }
+#pricePerBallDiv { text-align:center; margin-top:10px; }
+@media(max-width:500px){
+    input { width: 80px; font-size:14px; }
+    button { padding:5px 5px; font-size:14px; }
+    th, td { padding: 6px; font-size:14px; }
+}
+</style>
+</head>
+<body>
+
+<h2>🎱 นวลรัตน์เกมส์ 🎱</h2>
+
+<div id="pricePerBallDiv">
+    ราคา/เม็ด: <input type="number" id="pricePerBall" value="10" min="1" style="width:60px;" onchange="renderTable()"> บาท
+</div>
+
+<div id="totalScore">เม็ดทั้งหมด: 0</div>
+
+<table id="playerTable">
+  <thead>
+    <tr>
+      <th>ชื่อผู้เล่น</th>
+      <th>คะแนน</th>
+      <th>เพิ่ม</th>
+      <th>ลด</th>
+      <th>ลบผู้เล่น</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<button class="add-player" onclick="addPlayer()">➕ เพิ่มผู้เล่น</button>
+<button class="reset" onclick="resetScores()">🔄 รีเซ็ตคะแนนทั้งหมด</button>
+
+<div id="payments"></div>
+<div id="totals"></div>
+
+<script>
+let players = [];
+
+// แสดงตารางผู้เล่นและคำนวณเงิน
+function renderTable() {
+    const tbody = document.querySelector('#playerTable tbody');
+    tbody.innerHTML = '';
+    const pricePerBall = Number(document.getElementById('pricePerBall').value) || 10;
+    
+    let total = 0;
+    players.forEach((p) => total += p.score);
+    document.getElementById('totalScore').textContent = "เม็ดทั้งหมด: " + total;
+
+    // ตารางผู้เล่น
+    players.forEach((player, index) => {
+        const tr = document.createElement('tr');
+        tr.style.background = index % 2 === 0 ? '#e8f5e9' : '#f1f8e9';
+        tr.innerHTML = `
+            <td><span onclick="editName(${index}, this)" style="cursor:pointer;">${player.name}</span></td>
+            <td>${player.score}</td>
+            <td><button onclick="changeScore(${index},1)">+</button></td>
+            <td><button onclick="changeScore(${index},-1)">-</button></td>
+            <td><button onclick="removePlayer(${index})" style="background:#f44336;color:white;">ลบ</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    calculatePayments(pricePerBall);
+}
+
+// เพิ่มผู้เล่น (รองรับสูงสุด 6 คน)
+function addPlayer() {
+    if(players.length >= 6){
+        alert("รองรับสูงสุด 6 คน");
+        return;
+    }
+    const name = prompt("ใส่ชื่อผู้เล่นใหม่:");
+    if(name){
+        players.push({name, score:0});
+        renderTable();
+    }
+}
+
+// ลบผู้เล่น
+function removePlayer(index){
+    players.splice(index,1);
+    renderTable();
+}
+
+// แก้ชื่อ
+function editName(index, span){
+    const newName = prompt("แก้ไขชื่อผู้เล่น:", players[index].name);
+    if(newName){
+        players[index].name = newName;
+        renderTable();
+    }
+}
+
+// เปลี่ยนคะแนน
+function changeScore(index, delta){
+    players[index].score += delta;
+    if(players[index].score <0) players[index].score=0;
+    renderTable();
+}
+
+// รีเซ็ตคะแนน
+function resetScores(){
+    players.forEach(p => p.score = 0);
+    renderTable();
+}
+
+// คำนวณเงินและผลต่างคนต่อคน + สรุปยอดสุทธิ
+function calculatePayments(pricePerBall){
+    const paymentsDiv = document.getElementById('payments');
+    const totalsDiv = document.getElementById('totals');
+    if(players.length < 2){
+        paymentsDiv.innerHTML = '';
+        totalsDiv.innerHTML = '';
+        return;
+    }
+
+    let net = players.map(p => 0); // ยอดสุทธิ
+
+    let html = "<h3>ผลต่างและยอดจ่ายแต่ละคู่</h3><table style='width:100%; border-collapse:collapse;'><tr><th>ผู้จ่าย</th><th>ผู้รับ</th><th>เม็ดต่าง</th><th>เงิน (บาท)</th></tr>";
+    
+    for(let i=0;i<players.length;i++){
+        for(let j=0;j<players.length;j++){
+            if(i===j) continue;
+            if(players[i].score < players[j].score){
+                let diff = players[j].score - players[i].score;
+                let money = diff * pricePerBall;
+                net[i] -= money; // i จ่าย
+                net[j] += money; // j รับ
+                html += `<tr style="background:${(i+j)%2===0 ? '#e8f5e9':'#f1f8e9'}"><td>${players[i].name}</td><td>${players[j].name}</td><td>${diff}</td><td>${money}</td></tr>`;
+            }
+        }
+    }
+    html += "</table>";
+    paymentsDiv.innerHTML = html;
+
+    // สรุปยอดสุทธิแต่ละคน
+    let totalHtml = "<h3>ยอดสุทธิแต่ละคน</h3><ul>";
+    players.forEach((p,index)=>{
+        totalHtml += `<li><strong>${p.name}</strong>: ${net[index]} บาท</li>`;
+    });
+    totalHtml += "</ul>";
+    totalsDiv.innerHTML = totalHtml;
+}
+
+// เริ่มต้นตัวอย่าง
+players.push({name:"ผู้เล่น 1", score:0});
+players.push({name:"ผู้เล่น 2", score:0});
+renderTable();
+</script>
+
+</body>
+</html>
